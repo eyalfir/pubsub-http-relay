@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cloud.google.com/go/pubsub"
 	"context"
+	"github.com/eyalfir/logflag"
 	"github.com/namsral/flag"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -68,8 +69,8 @@ func main() {
 	flag.IntVar(&maxOutstandingMessages, "max-outstanding-messages", 1000, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
 	flag.IntVar(&numGoroutines, "num-goroutines", 10, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
 	flag.Parse()
-	log.SetLevel(log.DebugLevel)
-	log.Debug("Log level set to debug")
+	logflag.Parse()
+	log.Debug("Logging level set to debug")
 	if metricsPort != 0 {
 		http.Handle("/metrics", promhttp.Handler())
 		log.Infof("serving metrics on port %d, url /metrics", metricsPort)

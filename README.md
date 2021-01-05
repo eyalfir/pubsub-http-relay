@@ -18,3 +18,4 @@ To configure a flag using environmental variable, apply uppercase and replace al
 | metrics-port | yes | 2121 | port to expose prometheus metrics. set to empty string to skip metrics endpoint | 3434 |
 | max-outstanding-messages | yes | 1000 | see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings") | 10 |
 | num-goroutines | yes | 10 | see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings") | 2 |
+| log | yes | info | see https://github.com/reenjii/logflag | debug |
