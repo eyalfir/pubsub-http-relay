@@ -47,7 +47,7 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 	}
 	resp, requestErr := httpClient.Do(req)
 	if requestErr != nil {
-		log.Error("Cannot complete http request", err)
+		log.Error("Cannot complete http request", requestErr)
 		m.Nack()
 		return
 	}
