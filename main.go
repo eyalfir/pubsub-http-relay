@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var (
@@ -23,12 +24,18 @@ var (
 		Name: "acked_messages",
 		Help: "The total number of messages acked",
 	})
+	nacked = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "nacked_messages",
+		Help: "The total number of messages nacked",
+	})
 	targetURL                 string
 	sourceSubscriptionProject string
 	sourceSubscriptionName    string
 	metricsPort               int
 	maxOutstandingMessages    int
 	numGoroutines             int
+	maxIdleConns              int
+	idleConnTimeout           int
 
 	httpClient http.Client
 )
@@ -39,6 +46,7 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 	req, err := http.NewRequest("POST", targetURL, bytes.NewReader(m.Data))
 	if err != nil {
 		log.Error("Bad request...", err)
+		nacked.Inc()
 		m.Nack()
 		return
 	}
@@ -48,11 +56,13 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 	resp, requestErr := httpClient.Do(req)
 	if requestErr != nil {
 		log.Error("Cannot complete http request", requestErr)
+		nacked.Inc()
 		m.Nack()
 		return
 	}
 	if resp.StatusCode >= 300 {
 		log.Errorf("Got status %d, nacking", resp.StatusCode)
+		nacked.Inc()
 		m.Nack()
 		return
 	}
@@ -68,9 +78,13 @@ func main() {
 	flag.IntVar(&metricsPort, "metrics-port", 2121, "port number for the metrics endpoint")
 	flag.IntVar(&maxOutstandingMessages, "max-outstanding-messages", 1000, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
 	flag.IntVar(&numGoroutines, "num-goroutines", 10, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
+	flag.IntVar(&maxIdleConns, "max-idle-connections", 100, "see https://github.com/golang/go/issues/16012")
+	flag.IntVar(&idleConnTimeout, "idle-conn-timeout", 10, "in seconds. see https://golang.org/pkg/net/http/")
 	flag.Parse()
 	logflag.Parse()
 	log.Debug("Logging level set to debug")
+	http.DefaultTransport.(*http.Transport).MaxIdleConns = maxIdleConns
+	http.DefaultTransport.(*http.Transport).IdleConnTimeout = time.Duration(idleConnTimeout) * time.Second
 	if metricsPort != 0 {
 		http.Handle("/metrics", promhttp.Handler())
 		log.Infof("serving metrics on port %d, url /metrics", metricsPort)
