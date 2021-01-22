@@ -5,11 +5,12 @@ import (
 	"cloud.google.com/go/pubsub"
 	"context"
 	"github.com/eyalfir/logflag"
-	"github.com/namsral/flag"
+	legacyFlag "github.com/namsral/flag"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	flag "github.com/spf13/pflag"
 	"net/http"
 	"strconv"
 	"time"
@@ -81,7 +82,11 @@ func main() {
 	flag.IntVar(&maxIdleConns, "max-idle-connections", 100, "see https://github.com/golang/go/issues/16012")
 	flag.IntVar(&idleConnTimeout, "idle-conn-timeout", 10, "in seconds. see https://golang.org/pkg/net/http/")
 	flag.Parse()
+	legacyFlag.Parse()
 	logflag.Parse()
+	flag.VisitAll(func(thisFlag *flag.Flag) {
+		log.Info(thisFlag.Name, " = ", thisFlag.Value)
+	})
 	log.Debug("Logging level set to debug")
 	http.DefaultTransport.(*http.Transport).MaxIdleConns = maxIdleConns
 	http.DefaultTransport.(*http.Transport).IdleConnTimeout = time.Duration(idleConnTimeout) * time.Second
