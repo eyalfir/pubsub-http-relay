@@ -57,13 +57,13 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 		req.Header.Add(key, value)
 	}
 	resp, requestErr := httpClient.Do(req)
-	defer resp.Body.Close()
 	if requestErr != nil {
 		log.Error("Cannot complete http request", requestErr)
 		nacked.Inc()
 		m.Nack()
 		return
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		log.Errorf("Got status %d, nacking", resp.StatusCode)
 		nacked.Inc()
