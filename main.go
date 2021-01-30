@@ -63,13 +63,13 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 		m.Nack()
 		return
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		log.Errorf("Got status %d, nacking", resp.StatusCode)
 		nacked.Inc()
 		m.Nack()
 		return
 	}
-	defer resp.Body.Close()
 	m.Ack()
 	log.Debug("acked")
 	acked.Inc()
