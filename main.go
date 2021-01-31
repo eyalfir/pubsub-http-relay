@@ -24,10 +24,10 @@ var (
 		Name: "acked_messages",
 		Help: "The total number of messages acked",
 	})
-	nacked = promauto.NewCounter(prometheus.CounterOpts{
+	nacked = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "nacked_messages",
-		Help: "The total number of messages nacked",
-	})
+		Help: "The total number of messages nacked"},
+		[]string{"error"})
 	targetURL                 string
 	sourceSubscriptionProject string
 	sourceSubscriptionName    string
@@ -49,7 +49,7 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(m.Data))
 	if err != nil {
 		log.Error("Bad request...", err)
-		nacked.Inc()
+		nacked.With(prometheus.Labels{"error": "cannot_create_request"}).Inc()
 		m.Nack()
 		return
 	}
@@ -59,14 +59,14 @@ func handleMessage(ctx context.Context, m *pubsub.Message) {
 	resp, requestErr := httpClient.Do(req)
 	if requestErr != nil {
 		log.Error("Cannot complete http request", requestErr)
-		nacked.Inc()
+		nacked.With(prometheus.Labels{"error": "cannot_do_request"}).Inc()
 		m.Nack()
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		log.Errorf("Got status %d, nacking", resp.StatusCode)
-		nacked.Inc()
+		nacked.With(prometheus.Labels{"error": "bad_status"}).Inc()
 		m.Nack()
 		return
 	}
