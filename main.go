@@ -11,7 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"net/http"
 	"strconv"
@@ -38,6 +37,7 @@ var (
 	maxOutstandingMessages    int
 	numGoroutines             int
 	maxIdleConns              int
+	maxConnsPerHost           int
 	idleConnTimeout           time.Duration
 	maxExtension              time.Duration
 	maxExtensionPeriod        time.Duration
@@ -86,6 +86,7 @@ func main() {
 	flag.IntVar(&maxOutstandingMessages, "max-outstanding-messages", 1000, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
 	flag.IntVar(&numGoroutines, "num-goroutines", 10, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
 	flag.IntVar(&maxIdleConns, "max-idle-connections", 100, "see https://github.com/golang/go/issues/16012")
+	flag.IntVar(&maxConnsPerHost, "max-conns-per-host", 5, "see https://github.com/golang/go/issues/16012")
 	flag.DurationVar(&idleConnTimeout, "idle-conn-timeout", time.Duration(10)*time.Second, "see https://golang.org/pkg/net/http/")
 	flag.DurationVar(&maxExtension, "max-extension", time.Duration(60)*time.Minute, "see https://pkg.go.dev/cloud.google.com/go/pubsub")
 	flag.DurationVar(&maxExtensionPeriod, "max-extenstion-period", time.Duration(0), "see https://pkg.go.dev/cloud.google.com/go/pubsub")
@@ -98,6 +99,7 @@ func main() {
 	log.Debug("Logging level set to debug")
 	http.DefaultTransport.(*http.Transport).MaxIdleConns = maxIdleConns
 	http.DefaultTransport.(*http.Transport).IdleConnTimeout = idleConnTimeout
+	http.DefaultTransport.(*http.Transport).MaxConnsPerHost = maxConnsPerHost
 	pe, err := oc_prometheus.NewExporter(oc_prometheus.Options{
 		Namespace: "pubsub_http_relay",
 	})
