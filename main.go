@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"cloud.google.com/go/pubsub"
 	"context"
+	oc_prometheus "contrib.go.opencensus.io/exporter/prometheus"
 	"github.com/eyalfir/logflag"
 	"github.com/namsral/flag"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
 	"net/http"
 	"strconv"
 	"time"
@@ -84,7 +87,7 @@ func main() {
 	flag.IntVar(&numGoroutines, "num-goroutines", 10, "see https://pkg.go.dev/cloud.google.com/go/pubsub#ReceiveSettings")
 	flag.IntVar(&maxIdleConns, "max-idle-connections", 100, "see https://github.com/golang/go/issues/16012")
 	flag.DurationVar(&idleConnTimeout, "idle-conn-timeout", time.Duration(10)*time.Second, "see https://golang.org/pkg/net/http/")
-	flag.DurationVar(&maxExtension, "max-extenstion", time.Duration(0), "see https://pkg.go.dev/cloud.google.com/go/pubsub")
+	flag.DurationVar(&maxExtension, "max-extension", time.Duration(60)*time.Minute, "see https://pkg.go.dev/cloud.google.com/go/pubsub")
 	flag.DurationVar(&maxExtensionPeriod, "max-extenstion-period", time.Duration(0), "see https://pkg.go.dev/cloud.google.com/go/pubsub")
 	flag.BoolVar(&synchronous, "synchronous", false, "see https://pkg.go.dev/cloud.google.com/go/pubsub")
 	flag.Parse()
@@ -95,11 +98,27 @@ func main() {
 	log.Debug("Logging level set to debug")
 	http.DefaultTransport.(*http.Transport).MaxIdleConns = maxIdleConns
 	http.DefaultTransport.(*http.Transport).IdleConnTimeout = idleConnTimeout
-	if metricsPort != 0 {
-		http.Handle("/metrics", promhttp.Handler())
-		log.Infof("serving metrics on port %d, url /metrics", metricsPort)
-		go http.ListenAndServe(":"+strconv.Itoa(metricsPort), nil)
+	pe, err := oc_prometheus.NewExporter(oc_prometheus.Options{
+		Namespace: "pubsub_http_relay",
+	})
+	if err != nil {
+		log.Fatalf("Failed to create the Prometheus exporter: %v", err)
 	}
+	for _, subView := range pubsub.DefaultSubscribeViews {
+
+		if registerErr := view.Register(subView); registerErr != nil {
+			log.Warning("Cannot register view.", registerErr)
+		}
+	}
+
+	if metricsPort != 0 {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		mux.Handle("/open_census_metrics", pe)
+		log.Infof("serving metrics on port %d, url /metrics", metricsPort)
+		go http.ListenAndServe(":"+strconv.Itoa(metricsPort), mux)
+	}
+
 	ctx := context.Background()
 	sourceClient, err := pubsub.NewClient(ctx, sourceSubscriptionProject)
 	if err != nil {
@@ -113,6 +132,6 @@ func main() {
 	sub.ReceiveSettings.Synchronous = synchronous
 	err = sub.Receive(ctx, handleMessage)
 	if err != nil {
-		log.Fatal("Unable to receive messages")
+		log.Fatal("Unable to receive messages. ", err)
 	}
 }
